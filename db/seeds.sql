@@ -25,9 +25,3 @@ VALUES ('John', 'Doe', 1, null),
 ('Jeff', 'Winger', 7, null),
 ('Larry', 'Bird', 8, 7);
 
-SELECT * FROM department;
-
-
-INSERT INTO department(dept_name) 
-        VALUES('hello');
-SELECT * FROM department;

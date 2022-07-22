@@ -1,3 +1,5 @@
+// TODO fix null reading option on managerID inside addEmployee
+
 const inquirer = require('inquirer');
 const mysql = require('mysql2');
 const cTable = require('console.table')
@@ -13,9 +15,6 @@ const db = mysql.createConnection({
 console.log('connected to the database')
 );
 
-// this is a nightmare function, but it works!!
-// not actually too bad, just a lot of then chaining that can be difficult
-// could i turn this into one function for adding anything with just a table parameter and some if statements?
 function addEmployee () {
 db.promise().query('SELECT last_name, first_name, id FROM employee WHERE manager_id IS NULL')
 .then((rows) => {
@@ -59,18 +58,16 @@ db.promise().query('SELECT last_name, first_name, id FROM employee WHERE manager
             return true
         } 
     })
-    if(!managerId) managerID = null
+    if(!managerId) managerID = [{
+        id: 'none'
+    }]
     // accounts for the none option and sets manager_true accordingly
-    let manager_true = false;
-    if(manager) {
-        manager_true = false
-    } else if (manager = 'none'){
-        manager_true = true
-    }
-    
+    // currently, the 'none' selector on managerId[0].id reads undefined- how can i send a null value thru?
     db.promise().query(`INSERT INTO employee(first_name, last_name, role_id, manager_id)
-    VALUES(?,?,?,?)`, [first_name, last_name, roleId, managerId[0].id]).then(res => console.log(res)
-    ).then(() => init())
+    VALUES(?,?,?,?)`, [first_name, last_name, roleId, managerId[0].id]).then(() => {
+    console.log('Employee Added!')
+    init()}
+    )
 })
 })
 };
@@ -83,10 +80,10 @@ function updateEmployee () {
         for(i=0;i<rows.length;i++){
             result.push(`${rows[i].first_name} ${rows[i].last_name}`)
         }
-        return result
+        // if this ever breaks again, add return result back
+        questions.updateRole[0].choices = result
     })
     // sets name arr, result, to the correct choices set
-    .then(res => questions.updateRole[0].choices = res)
     .then(
         db.promise()
     .query('SELECT * FROM ROLES')
@@ -98,18 +95,17 @@ function updateEmployee () {
         for(i=0;i<rows.length;i++){
             result.push(rows[i].title);
         }
-        return result
-    }).then(res => questions.updateRole[1].choices = res)
+        questions.updateRole[1].choices = result
+    })
     .then(() => {
         inquirer.prompt(questions.updateRole).then(({ employees, roles }) => {
-
             let role = questions.updateRole[1].choices.indexOf(roles) + 1
             let id = questions.updateRole[0].choices.indexOf(employees) + 1
-            console.log(role)
-            console.log(id)
-            db.promise().query(`UPDATE employee SET role_id = ${role} WHERE id = ${id}`).then((res) => {
-                console.log(res)
-            }).then(() => init())
+            db.promise().query(`UPDATE employee SET role_id = ${role} WHERE id = ${id}`)
+            .then(() => {
+                console.log('Employee Updated!')
+                init()
+            })
         }) 
     })
     )
@@ -129,7 +125,10 @@ function displayAll(table){
 function addDept() {
     inquirer.prompt(questions.dept).then(answers => {
         db.promise().query(`INSERT INTO department(dept_name) 
-        VALUES('${answers.dept}');`).then(() => init());
+        VALUES('${answers.dept}');`).then(() => {
+            console.log('Department Added')
+            init()
+        });
     })
 }
 
@@ -145,9 +144,12 @@ function addRole(){
     }).then(
     inquirer.prompt(questions.role).then(({ role, salary, dept }) => {
 
-        let dept_id = questions.role[2].choices.indexOf(dept)
+        let dept_id = questions.role[2].choices.indexOf(dept) + 1
         db.promise().query(`INSERT INTO roles(title, salary, department_id)
-        VALUES('${role}', ${salary}, '${dept_id}')`).then(() => init())
+        VALUES('${role}', ${salary}, '${dept_id}')`).then(() => {
+            console.log('Role Added!')
+            init()
+        })
     })
     )}
 
