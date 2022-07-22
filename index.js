@@ -1,5 +1,6 @@
 const inquirer = require('inquirer');
 const mysql = require('mysql2');
+const cTable = require('console.table')
 
 const db = mysql.createConnection({
     host: 'localhost',
@@ -14,38 +15,64 @@ console.log('connected to the database')
 
 // this is a nightmare function, but it works!!
 // not actually too bad, just a lot of then chaining that can be difficult
+// could i turn this into one function for adding anything with just a table parameter and some if statements?
 function addEmployee () {
-db.promise().query('SELECT last_name, first_name FROM employee WHERE manager_true = true')
+db.promise().query('SELECT last_name, first_name, id FROM employee WHERE manager_id IS NULL')
 .then((rows) => {
     // creates and returns an array of strings that are firstname lastname
     rows = rows[0]
-    let result = []
+    let result = ['None']
+    // creates and sets the result variable = our choices array in questions. 
     for(i=0;i<rows.length;i++){
         let pushMe = `${rows[i].first_name} ${rows[i].last_name}`
-        result.push(pushMe);
+        result.unshift(pushMe);
     }
-    return result
+    questions.employee[3].choices = result;
+    // returns rows to pass the manager name and ids down for later in the chain
+    return rows
 })
-// sets result to our choices array
-.then(res => questions.employee[3].choices = res)
-// sets roles arr
 .then(
     db.promise()
 .query('SELECT * FROM ROLES')
-// nested then that creates and returns the arr of roles to questions choices
 .then(rows => {
+    // isolates our managers section
     rows = rows[0]
+
     let result = []
+    // does exactly the same as the first for loop, but this time for our roles list
     for(i=0;i<rows.length;i++){
         result.push(rows[i].title);
     }
-    return result
-})
-.then(res => questions.employee[2].choices = res))
-// after both choices have been set, we ask our inquirer prompt
-.then(inquirer.prompt(questions.employee).then(answers => {
-    console.log(answers)
+    questions.employee[2].choices = result
+    // we dont need to return our roles obj because we can pull those ids from our choices list
 }))
+// after both choices have been set, we ask our inquirer prompt
+.then(rows => {inquirer.prompt(questions.employee).then(answers => {
+    // destructures answers
+    let { first_name, last_name, manager, role } = answers
+    // get role id from index of role choices + 1- we dont need to exclude anything from the roles list, so this works well
+    let roleId = questions.employee[2].choices.indexOf(role) + 1
+    // managerId is set as the result of filtering through our manager list - any that return true as having the same first and last name as manager 
+    // are returned in an array as an object storing the manager names and id
+    let managerId = rows.filter(row => {
+        if(`${row.first_name} ${row.last_name}` === manager){
+            return true
+        } 
+    })
+    if(!managerId) managerID = null
+    // accounts for the none option and sets manager_true accordingly
+    let manager_true = false;
+    if(manager) {
+        manager_true = false
+    } else if (manager = 'none'){
+        manager_true = true
+    }
+    
+    db.promise().query(`INSERT INTO employee(first_name, last_name, role_id, manager_id)
+    VALUES(?,?,?,?)`, [first_name, last_name, roleId, managerId[0].id]).then(res => console.log(res)
+    ).then(() => init())
+})
+})
 };
 
 function updateEmployee () {
@@ -74,34 +101,55 @@ function updateEmployee () {
         return result
     }).then(res => questions.updateRole[1].choices = res)
     .then(() => {
-        inquirer.prompt(questions.updateRole).then((res) => {
-            console.log(res)
-        })
+        inquirer.prompt(questions.updateRole).then(({ employees, roles }) => {
+
+            let role = questions.updateRole[1].choices.indexOf(roles) + 1
+            let id = questions.updateRole[0].choices.indexOf(employees) + 1
+            console.log(role)
+            console.log(id)
+            db.promise().query(`UPDATE employee SET role_id = ${role} WHERE id = ${id}`).then((res) => {
+                console.log(res)
+            }).then(() => init())
+        }) 
     })
     )
 }
-
-function searchId(table, id) {
-    let name = ''
-    if(table === 'employee'){
-        name = 'first_name, last_name'
-    } else if(table === 'roles'){
+ 
+function displayAll(table){
+    let name = 'dept_name'
+    if (table === 'roles'){
         name = 'title'
-    } else {
-        name = 'dept_name'
     }
-    db.query(`SELECT ${name}, id FROM ${table}`, (err, res) => {
-        if(err) throw err
-        for(i=0;i<res.length;i++){
-            if(res[i].id === id){
-                console.log(res[i])
-            }
-        }
+    db.promise().query(`SELECT ${name}, id FROM ${table}`).then(res => {
+        res = res[0]
+        console.table(res)
+    }).then(() => init())
+}
+
+function addDept() {
+    inquirer.prompt(questions.dept).then(answers => {
+        db.promise().query(`INSERT INTO department(dept_name) 
+        VALUES('${answers.dept}');`).then(() => init());
     })
 }
 
-searchId('employee', 5)
+function addRole(){
+    db.promise().query('SELECT dept_name FROM department').then(depts => {
+        depts = depts[0];
+        let result = []
 
+        for(i=0;i<depts.length;i++){
+            result.push(depts[i].dept_name)
+        }
+        questions.role[2].choices = result;
+    }).then(
+    inquirer.prompt(questions.role).then(({ role, salary, dept }) => {
+
+        let dept_id = questions.role[2].choices.indexOf(dept)
+        db.promise().query(`INSERT INTO roles(title, salary, department_id)
+        VALUES('${role}', ${salary}, '${dept_id}')`).then(() => init())
+    })
+    )}
 
 let questions = {
     start: [
@@ -125,13 +173,13 @@ let questions = {
             type: 'list',
             name: 'role',
             message: 'Employee Role?',
-            choices: ['add list of choices']
+            choices: ['']
         }, {
             type: 'list',
             name: 'manager',
             message: 'Insert employee Manager',
             // once this function is in place, along with the other set of choices, itll just be updating the database with that info
-            choices: ['add later']
+            choices: ['']
         }
     ],
     dept: [{
@@ -171,38 +219,32 @@ let questions = {
 
 // TODO: set up loop back to questions.start after all but quit
 // thinking to set up this prompt as a function, then call the function back on a .then at the end of each case
+async function init(){
 inquirer.prompt(questions.start).then((answers) => {
     switch(answers.options){
         case 'Add Employee':
             addEmployee();
             break;
         case 'Update Employee Role':
-            updateEmployee()
+            updateEmployee();
             break;
         case 'View All Roles':
-            db.query('SELECT * FROM roles;', (err, result) => {
-                if(err) throw err;
-                // so next we'll need to format this response in the console
-                // just kind of assuming thatll be the third npm package they have installed
-                console.log(result)
-            });
+            displayAll('roles');
             break;
         case 'Add Role':
-            console.log(answers.options)
+            addRole();
             break;
         case 'View All Departments':
-            db.query('SELECT * FROM department', (err, result) => {
-                if(err) throw err;
-
-                console.log(result)
-            })
+            displayAll('department');
             break;
         case 'Add Department':
-            console.log(answers.options)
+            addDept();
             break;
         case 'Quit':
             return
             break;
     }
 });
+}
 
+init()
