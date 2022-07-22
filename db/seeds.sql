@@ -15,18 +15,19 @@ VALUES ('Sales Lead', 100000, 4),
 ('Legal Team Lead', 250000, 3),
 ('Lawyer', 190000, 3);
 
-INSERT INTO employee (first_name, last_name, role_id, manager)
-VALUES ('John', 'Doe', 1, null),
-('Josh', 'Dawn', 2, 1),
-('Ashley', 'Rodriguez', 3, null),
-('Mike', 'Wazowski', 4, 3),
-('Sally', 'Sparrow', 5, null),
-('Suzan', 'Strong', 6, 5),
-('Jeff', 'Winger', 7, null),
-('Larry', 'Bird', 8, 7);
+INSERT INTO employee (first_name, last_name, role_id, manager, manager_true)
+VALUES ('John', 'Doe', 1, null, true),
+('Josh', 'Dawn', 2, 1, false),
+('Ashley', 'Rodriguez', 3, null, true),
+('Mike', 'Wazowski', 4, 3, false),
+('Sally', 'Sparrow', 5, null, true),
+('Suzan', 'Strong', 6, 5, false),
+('Jeff', 'Winger', 7, null, true),
+('Larry', 'Bird', 8, 7, false);
 
 SELECT * FROM department;
 
 SELECT * FROM roles;
 
-SELECT * FROM employee
+SELECT last_name, first_name FROM employee 
+WHERE manager_true = true;
