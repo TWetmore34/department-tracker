@@ -1,5 +1,4 @@
-// TODO fix null reading option on managerID inside addEmployee
-
+// TODO: figure out how to get manager_id to read as manager_name with a join statement
 const inquirer = require('inquirer');
 const mysql = require('mysql2');
 const cTable = require('console.table')
@@ -43,67 +42,65 @@ db.promise().query('SELECT last_name, first_name, id FROM employee WHERE manager
         result.push(rows[i].title);
     }
     questions.employee[2].choices = result
-    // we dont need to return our roles obj because we can pull those ids from our choices list
 }))
-// after both choices have been set, we ask our inquirer prompt
-.then(rows => {inquirer.prompt(questions.employee).then(answers => {
-    // destructures answers
-    let { first_name, last_name, manager, role } = answers
-    // get role id from index of role choices + 1- we dont need to exclude anything from the roles list, so this works well
+// after both choices have been set, we run our inquirer prompt
+.then(rows => {inquirer.prompt(questions.employee).then(({ first_name, last_name, manager, role }) => {
+    // get role id from index of role choices + 1
     let roleId = questions.employee[2].choices.indexOf(role) + 1
     // managerId is set as the result of filtering through our manager list - any that return true as having the same first and last name as manager 
-    // are returned in an array as an object storing the manager names and id
-    let managerId = rows.filter(row => {
-        if(`${row.first_name} ${row.last_name}` === manager){
-            return true
-        } 
-    })
-    if(!managerId) managerID = [{
-        id: 'none'
-    }]
-    // accounts for the none option and sets manager_true accordingly
-    // currently, the 'none' selector on managerId[0].id reads undefined- how can i send a null value thru?
+    // are set managerId from null to the manager's id (rows[i].id) - we init as null for the case that manager = none
+    let managerId = null
+    for(i=0;i<rows.length;i++){
+    console.log(`${rows[i].first_name} ${rows[i].last_name}`)
+        if(`${rows[i].first_name} ${rows[i].last_name}` === manager.trim()){
+            managerId = rows[i].id
+        }
+    }
     db.promise().query(`INSERT INTO employee(first_name, last_name, role_id, manager_id)
-    VALUES(?,?,?,?)`, [first_name, last_name, roleId, managerId[0].id]).then(() => {
-    console.log('Employee Added!')
-    init()}
-    )
+    VALUES(?,?,?,?)`, [first_name, last_name, roleId, managerId]).then(() => {
+    console.log(`Added employee ${first_name} ${last_name} to the database!`)
+    init()})
 })
 })
 };
 
 function updateEmployee () {
-    // Creates list of names from db
     db.promise().query('SELECT first_name, last_name FROM employee').then((rows) => {
         rows = rows[0]
         let result = []
+        // Creates list of names from db
         for(i=0;i<rows.length;i++){
             result.push(`${rows[i].first_name} ${rows[i].last_name}`)
         }
-        // if this ever breaks again, add return result back
+        // set our choices arr equaly to our names list
         questions.updateRole[0].choices = result
     })
-    // sets name arr, result, to the correct choices set
     .then(
         db.promise()
+        // select all from roles
     .query('SELECT * FROM ROLES')
-    // nested then that creates and returns the arr of roles to questions choices
     .then(rows => {
+        // isolates response
         rows = rows[0]
-
         let result = []
+        // Creates list of roles from db
         for(i=0;i<rows.length;i++){
             result.push(rows[i].title);
         }
+        // sets choices arr to roles list
         questions.updateRole[1].choices = result
     })
     .then(() => {
+        // now that choices are set, call inqurier prompt
         inquirer.prompt(questions.updateRole).then(({ employees, roles }) => {
+            // grabs the chosen role and id from the list
             let role = questions.updateRole[1].choices.indexOf(roles) + 1
             let id = questions.updateRole[0].choices.indexOf(employees) + 1
+            // updates role
             db.promise().query(`UPDATE employee SET role_id = ${role} WHERE id = ${id}`)
             .then(() => {
-                console.log('Employee Updated!')
+                // success message and recalls init function
+                console.log(`Updated ${questions.updateRole[0].choices[id-1]}'s role to ${questions.updateRole[1].choices[role-1]}!`)
                 init()
             })
         }) 
@@ -112,54 +109,79 @@ function updateEmployee () {
 }
  
 function displayAll(table){
-    let name = 'dept_name'
+    // base case is dept - saves an else if line
+    let name = 'dept_name, id'
+    let join = ';'
+    // if statements alter name and join depending on which table was requested
     if (table === 'roles'){
-        name = 'title'
+        name = 'roles.id, title, salary, dept_name'
+        join = 'JOIN department ON roles.department_id = department.id'
+    } else if (table === 'employee'){
+        name = 'employee.id, first_name, title, salary, dept_name, manager_id'
+        join = 'JOIN roles ON employee.role_id = roles.id JOIN department ON roles.department_id = department.id'
     }
-    db.promise().query(`SELECT ${name}, id FROM ${table}`).then(res => {
+    // calls for display using set vars from the if block
+    db.promise().query(`SELECT ${name} FROM ${table} ${join}`).then(res => {
         res = res[0]
+        // makes sure there's space between init function lines and the response
+        console.log('\n')
+        // creates table for response
         console.table(res)
+        // call init() to restart loop
     }).then(() => init())
 }
 
 function addDept() {
+    // inqurier prompt asks for dept name
     inquirer.prompt(questions.dept).then(answers => {
-        db.promise().query(`INSERT INTO department(dept_name) 
-        VALUES('${answers.dept}');`).then(() => {
-            console.log('Department Added')
+        // dept name answer sent into db request that inserts new name
+        db.promise().query(
+            `INSERT INTO department(dept_name) 
+            VALUES('${answers.dept}');`)
+            .then(() => {
+                // confirmation msg
+            console.log(`${answers.dept} Department Added`)
             init()
         });
     })
 }
 
 function addRole(){
+    // grabs list of dept names
     db.promise().query('SELECT dept_name FROM department').then(depts => {
+        // isolates response
         depts = depts[0];
         let result = []
-
+        // create list from depts
         for(i=0;i<depts.length;i++){
             result.push(depts[i].dept_name)
         }
+        // set list = choices arr
         questions.role[2].choices = result;
     }).then(
+        // run inqurier prompt
     inquirer.prompt(questions.role).then(({ role, salary, dept }) => {
-
+        // grabs selected dept
         let dept_id = questions.role[2].choices.indexOf(dept) + 1
-        db.promise().query(`INSERT INTO roles(title, salary, department_id)
-        VALUES('${role}', ${salary}, '${dept_id}')`).then(() => {
-            console.log('Role Added!')
+        // inserts values into db request
+        db.promise().query(
+            `INSERT INTO roles(title, salary, department_id)
+            VALUES('${role}', ${salary}, '${dept_id}')`)
+        .then(() => {
+            // confirmation msg and rerun init
+            console.log(`${role} Role Added!`)
             init()
         })
     })
     )}
-
+// holds all inquirer questions in an object
 let questions = {
     start: [
     {
         type: 'list',
         name: 'options',
         message: 'What would you like to do?',
-        choices: ['Add Employee', 'Update Employee Role', 'View All Roles', 'Add Role', 'View All Departments', 'Add Department', 'Quit']
+        choices: ['View All Employees', 'Add Employee', 'Update Employee Role', 'View All Roles', 'Add Role', 'View All Departments', 'Add Department', 'Quit']
     }
 ],
     employee: [
@@ -181,7 +203,7 @@ let questions = {
             name: 'manager',
             message: 'Insert employee Manager',
             // once this function is in place, along with the other set of choices, itll just be updating the database with that info
-            choices: ['']
+            choices: []
         }
     ],
     dept: [{
@@ -219,11 +241,13 @@ let questions = {
     ]
 }
 
-// TODO: set up loop back to questions.start after all but quit
-// thinking to set up this prompt as a function, then call the function back on a .then at the end of each case
+// init function takes response from start questions, and runs each function accordingly
 async function init(){
+    // if refactoring, could turn this switch statement into an object to help speed
 inquirer.prompt(questions.start).then((answers) => {
     switch(answers.options){
+        case 'View All Employees':
+            displayAll('employee')
         case 'Add Employee':
             addEmployee();
             break;
@@ -246,7 +270,5 @@ inquirer.prompt(questions.start).then((answers) => {
             return
             break;
     }
-});
-}
-
+})};
 init()
