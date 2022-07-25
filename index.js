@@ -51,7 +51,6 @@ db.promise().query('SELECT last_name, first_name, id FROM employee WHERE manager
     // are set managerId from null to the manager's id (rows[i].id) - we init as null for the case that manager = none
     let managerId = null
     for(i=0;i<rows.length;i++){
-    console.log(`${rows[i].first_name} ${rows[i].last_name}`)
         if(`${rows[i].first_name} ${rows[i].last_name}` === manager.trim()){
             managerId = rows[i].id
         }
@@ -63,7 +62,7 @@ db.promise().query('SELECT last_name, first_name, id FROM employee WHERE manager
 })
 })
 };
-
+// when i try to run this specifically after the
 function updateEmployee () {
     db.promise().query('SELECT first_name, last_name FROM employee').then((rows) => {
         rows = rows[0]
@@ -182,7 +181,7 @@ let questions = {
         name: 'options',
         message: 'What would you like to do?',
         choices: ['View All Employees', 'Add Employee', 'Update Employee Role', 'View All Roles', 'Add Role', 'View All Departments', 'Add Department', 'Quit']
-    }
+    }, 
 ],
     employee: [
         {
@@ -240,31 +239,35 @@ let questions = {
 
     ]
 }
+// I believe the bugs that are happening are due to the way im calling the init function in each smaller function? 
+// currently, inquirer prompts will pull from the worng lists and skip quesitons for seemingly no reason
 
 // init function takes response from start questions, and runs each function accordingly
-async function init(){
-    // if refactoring, could turn this switch statement into an object to help speed
-inquirer.prompt(questions.start).then((answers) => {
-    switch(answers.options){
+// each time we make a selection here, it asks the next question in the add employee set?
+
+function init(){
+    // if refactoring, could turn this switch statement into an object to help speed?
+inquirer.prompt(questions.start).then(({ options }) => {
+    switch(options){
         case 'View All Employees':
-            displayAll('employee')
+            return displayAll('employee')
         case 'Add Employee':
-            addEmployee();
+            return addEmployee();
             break;
         case 'Update Employee Role':
-            updateEmployee();
+            return updateEmployee();
             break;
         case 'View All Roles':
-            displayAll('roles');
+            return displayAll('roles');
             break;
         case 'Add Role':
-            addRole();
+            return  addRole();
             break;
         case 'View All Departments':
-            displayAll('department');
+            return displayAll('department');
             break;
         case 'Add Department':
-            addDept();
+            return addDept();
             break;
         case 'Quit':
             return
