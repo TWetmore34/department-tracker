@@ -110,7 +110,7 @@ function updateEmployee () {
  
 function displayAll(table){
     // base case is dept - saves an else if line
-    let name = 'dept_name, id'
+    let name = '*'
     let join = ';'
     // if statements alter name and join depending on which table was requested
     if (table === 'roles'){
